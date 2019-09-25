@@ -6,6 +6,7 @@
  */
 
 #include <QtWidgets/QtWidgets>
+#include <QDebug>
 #include <opencv/cv.hpp>
 #include "MainWindow.h"
 
@@ -25,11 +26,10 @@ MainWindow::MainWindow(QWidget *parent)
 	// Process the image with openCV
 	cv::Mat inMat = QImageToCvMat(newImage);
 
-	double height = 800;
-	double ratio = height / inMat.rows;
-	double width = inMat.cols * ratio;
+	int height = 800;
+	double ratio = (double) height / (double) inMat.rows;
+	int width = inMat.cols * ratio;
 
-	//cv::Mat imgA((int)(height), (int)(width), inMat.type());
 	cv::Mat imgA;
 	cv::Mat imgB;
 
@@ -48,6 +48,36 @@ MainWindow::MainWindow(QWidget *parent)
 
 	cv::findContours(imgA, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 	cv::cvtColor(imgA, imgB, cv::COLOR_GRAY2BGRA);
+
+	double MAX_CONTOUR_AREA = (width - 10) * (height - 10);
+	double maxAreaFound = MAX_CONTOUR_AREA * 0.5;
+
+	std::vector<cv::Point> pageContour = {{5,5}, {5, height-5}, {width-5, height-5}, {width-5, 5}};
+
+	for(int i = 0; i < (int)contours.size(); i++) {
+		std::vector<cv::Point> cnt = contours.at(i);
+		std::vector<cv::Point> approx_cnt;
+
+		double perimeter = cv::arcLength(cnt, true);
+		cv::approxPolyDP(cnt, approx_cnt, 0.03 * perimeter, true);
+		double area = cv::contourArea(approx_cnt);
+
+		bool rule = approx_cnt.size() == 4;
+		rule = rule && cv::isContourConvex(approx_cnt);
+		rule = rule && maxAreaFound < area;
+		rule = rule && area < MAX_CONTOUR_AREA;
+
+		if (rule) {
+			maxAreaFound = area;
+			pageContour = approx_cnt;
+		}
+	}
+
+	qDebug() << pageContour.at(0).x;
+
+	contours.clear();
+	contours.push_back(pageContour);
+	cv::drawContours(imgB, contours, -1, cv::Scalar(200,200,200), 3);
 
 	// Display the image in Qt
 	QImage outImage = cvMatToQImage(imgB);
