@@ -8,8 +8,18 @@
 #include <QtWidgets/QApplication>
 #include "MainWindow.h"
 
+#include "stdio.h"
+void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+{
+    printf(qUtf8Printable(msg));
+    printf("\n");
+    fflush(stdout);
+}
+
 int main(int argc, char *argv[])
 {
+	qInstallMessageHandler(messageHandler);
+
 	QApplication app(argc, argv);
 
 	MainWindow  mainWin;

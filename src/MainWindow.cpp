@@ -19,7 +19,7 @@ MainWindow::MainWindow(QWidget *parent)
 	photoview->setScaledContents(true);
 
 	setCentralWidget(photoview);
-	QImageReader reader("./src/test.jpg");
+	QImageReader reader("./src/test2.jpg");
 	reader.setAutoTransform(true);
 	const QImage newImage = reader.read();
 
@@ -33,13 +33,13 @@ MainWindow::MainWindow(QWidget *parent)
 	cv::Mat imgA;
 	cv::Mat imgB;
 
-	cv::resize(inMat, imgA, cv::Size(height, width));
+	cv::resize(inMat, imgA, cv::Size(width, height));
 	cv::cvtColor(imgA, imgB, cv::COLOR_BGRA2GRAY);
 
 	cv::bilateralFilter(imgB, imgA, 9, 75, 75);
 	cv::adaptiveThreshold(imgA, imgB, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, 115, 4);
 	cv::medianBlur(imgB, imgA, 11);
-	cv::copyMakeBorder(imgA, imgB, 5, 5, 5, 5, cv::BORDER_REPLICATE);
+	cv::copyMakeBorder(imgA, imgB, 5, 5, 5, 5, cv::BORDER_CONSTANT , cv::Scalar(0,0,0));
 	cv::Canny(imgB, imgA, 200, 250);
 
 	// Find contour
@@ -52,7 +52,7 @@ MainWindow::MainWindow(QWidget *parent)
 	double MAX_CONTOUR_AREA = (width - 10) * (height - 10);
 	double maxAreaFound = MAX_CONTOUR_AREA * 0.5;
 
-	std::vector<cv::Point> pageContour = {{5,5}, {5, height-5}, {width-5, height-5}, {width-5, 5}};
+	std::vector<cv::Point> page = {{5,5}, {5, height-5}, {width-5, height-5}, {width-5, 5}};
 
 	for(int i = 0; i < (int)contours.size(); i++) {
 		std::vector<cv::Point> cnt = contours.at(i);
@@ -69,18 +69,69 @@ MainWindow::MainWindow(QWidget *parent)
 
 		if (rule) {
 			maxAreaFound = area;
-			pageContour = approx_cnt;
+			page = approx_cnt;
 		}
 	}
 
-	qDebug() << pageContour.at(0).x;
+	// Sort contour corners
+	int topLeft = 0;
+	int bottomLeft = 0;
+	int bottomRight = 0;
+	int topRight = 0;
 
+	double minDiff = 1e9, maxDiff = -1e9;
+	double minSum = 1e9, maxSum = -1e9;
+	for(int i=0; i < (int)page.size(); i++) {
+		double diff = page.at(i).x - page.at(i).y;
+		double sum = page.at(i).x + page.at(i).y;
+		if(diff > maxDiff) { maxDiff = diff; topRight = i; }
+		if(diff < minDiff) { minDiff = diff; bottomLeft = i; }
+		if(sum > maxSum) { maxSum = sum; bottomRight = i; }
+		if(sum < minSum) { minSum = sum; topLeft = i; }
+	}
+
+	// Map point back to the original image size
+	std::vector<cv::Point> aux;
+	aux.push_back((page.at(topLeft) - cv::Point(3,3)) / ratio);
+	aux.push_back((page.at(bottomLeft) - cv::Point(3,7)) / ratio);
+	aux.push_back((page.at(bottomRight) - cv::Point(7,7)) / ratio);
+	aux.push_back((page.at(topRight) - cv::Point(7,3)) / ratio);
+	page = aux;
+
+	// Draw contour in the original image
 	contours.clear();
-	contours.push_back(pageContour);
-	cv::drawContours(imgB, contours, -1, cv::Scalar(200,200,200), 3);
+	contours.push_back(page);
+	cv::drawContours(inMat, contours, -1, cv::Scalar(200,20,20), 5);
+
+	// Mean page size
+	double h1 = fabs(page.at(0).y - page.at(1).y);
+	double h2 = fabs(page.at(2).y - page.at(3).y);
+	int pageHeight = (h1 + h2)/2;
+
+	double w1 = fabs(page.at(1).x - page.at(2).x);
+	double w2 = fabs(page.at(0).x - page.at(3).x);
+	int pageWidth = (w1 + w2)/2;
+
+	// Source and target page points
+	std::vector<cv::Point2f> sPoints;
+	sPoints.push_back(cv::Point2f(page.at(0).x, page.at(0).y));
+	sPoints.push_back(cv::Point2f(page.at(1).x, page.at(1).y));
+	sPoints.push_back(cv::Point2f(page.at(2).x, page.at(2).y));
+	sPoints.push_back(cv::Point2f(page.at(3).x, page.at(3).y));
+
+	std::vector<cv::Point2f> tPoints;
+	tPoints.push_back(cv::Point2f(0,0));
+	tPoints.push_back(cv::Point2f(0,pageHeight));
+	tPoints.push_back(cv::Point2f(pageWidth,pageHeight));
+	tPoints.push_back(cv::Point2f(pageWidth,0));
+
+	// Perspective transform
+	cv::Mat outMat;
+	cv::Mat M = cv::getPerspectiveTransform(sPoints, tPoints);
+	cv::warpPerspective(inMat, outMat, M, cv::Size(pageWidth, pageHeight));
 
 	// Display the image in Qt
-	QImage outImage = cvMatToQImage(imgB);
+	QImage outImage = cvMatToQImage(outMat);
 
 	QSize imgSize = outImage.size();
 	double imgWidth = outImage.width();

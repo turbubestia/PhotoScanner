@@ -21,6 +21,8 @@ public:
 private:
 	cv::Mat QImageToCvMat(const QImage &inImage);
 	QImage cvMatToQImage(const cv::Mat &inMat);
+
+
 private:
 	QLabel *photoview;
 
