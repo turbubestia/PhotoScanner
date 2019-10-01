@@ -17,4 +17,4 @@ INCLUDEPATH += $$(MINGW_HOME)/include/opencv
 
 LIBS += -L$$(MINGW_HOME)/lib
 LIBS += -llibopencv_core -llibopencv_highgui -llibopencv_imgcodecs
-LIBS += -llibopencv_imgproc -llibopencv_features2d -llibopencv_calib3d
+LIBS += -llibopencv_imgproc -llibopencv_features2d -llibopencv_calib3d -llibopencv_photo
