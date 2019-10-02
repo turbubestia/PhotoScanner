@@ -9,7 +9,7 @@
 #define SRC_MAINWINDOW_H_
 
 #include <QtWidgets/QtWidgets>
-#include <opencv/cv.hpp>
+#include <opencv4/opencv2/opencv.hpp>
 
 class MainWindow : public QMainWindow
 {

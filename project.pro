@@ -13,7 +13,8 @@ SOURCES += src/main.cpp \
 	
 HEADERS += src/MainWindow.h
 
-INCLUDEPATH += $$(MINGW_HOME)/include/opencv
+INCLUDEPATH += $$(MINGW_HOME)/include/opencv4
+INCLUDEPATH += $$(MINGW_HOME)/include/opencv4/opencv2
 
 LIBS += -L$$(MINGW_HOME)/lib
 LIBS += -llibopencv_core -llibopencv_highgui -llibopencv_imgcodecs

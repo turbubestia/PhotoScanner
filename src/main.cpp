@@ -9,8 +9,10 @@
 #include "MainWindow.h"
 
 #include "stdio.h"
-void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
-{
+void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
+	Q_UNUSED(type);
+	Q_UNUSED(context);
+
     printf(qUtf8Printable(msg));
     printf("\n");
     fflush(stdout);

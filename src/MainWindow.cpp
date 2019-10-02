@@ -5,11 +5,13 @@
  *      Author: claud
  */
 
+#include <QDebug>
+
 #include <QtWidgets/QtWidgets>
 #include <QtWidgets/QFileSystemModel>
-#include <QDebug>
-#include <opencv/cv.hpp>
-#include <opencv2/core/saturate.hpp>
+
+#include <opencv.hpp>
+#include <core/saturate.hpp>
 #include "MainWindow.h"
 
 MainWindow::MainWindow(QWidget *parent)
@@ -234,18 +236,14 @@ void MainWindow::clicked(const QModelIndex &index) {
 	fileName = fileModel->filePath(index);
 	bool fromScanned = fileName.contains("_scanned");
 
-	if (fromScanned) {
+	if (fromScanned || fileModel->isDir(index)) {
 		original->setPixmap(QPixmap());
 		page->setPixmap(QPixmap());
 		imgPageOriginal = QImage();
 		fileName = QString();
 
-		cbPageSize->setEnabled(false);
-		slWhite->setEnabled(false);
-		slBlack->setEnabled(false);
-		sbWhite->setEnabled(false);
-		sbBlack->setEnabled(false);
-		pbSave->setEnabled(false);
+		gbSize->setEnabled(false);
+		gbAdjust->setEnabled(false);
 
 	} else {
 		// The the opened image
@@ -259,8 +257,10 @@ void MainWindow::clicked(const QModelIndex &index) {
 		// Scan it
 		imgPageOriginal = scan(inImage);
 
-		gbSize->setEnabled(true);
 		pageSizeSelected();
+
+		gbSize->setEnabled(true);
+		gbAdjust->setEnabled(true);
 	}
 }
 
