@@ -10,8 +10,8 @@
 #include <QtWidgets/QtWidgets>
 #include <QtWidgets/QFileSystemModel>
 
-#include <opencv.hpp>
-#include <core/saturate.hpp>
+#include <opencv4/opencv2/opencv.hpp>
+#include <opencv4/opencv2/core/saturate.hpp>
 #include "MainWindow.h"
 
 MainWindow::MainWindow(QWidget *parent)
@@ -427,6 +427,7 @@ void MainWindow::save() {
 	QFileInfo fileInfo(fileName);
 	QString outputFile = QString("%1/%2_scanned.jpg").arg(fileInfo.path()).arg(fileInfo.baseName());
 	QImageWriter writer(outputFile);
+	writer.setQuality(90);
 	writer.write(imgPageProcessed);
 }
 
