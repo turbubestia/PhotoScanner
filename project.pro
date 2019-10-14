@@ -9,9 +9,11 @@ Release: TARGET = pscan
 TEMPLATE = app
 
 SOURCES += src/main.cpp \
-	src/MainWindow.cpp
+	src/MainWindow.cpp \
+	src/PageViewer.cpp
 	
-HEADERS += src/MainWindow.h
+HEADERS += src/MainWindow.h \
+	src/PageViewer.h
 
 INCLUDEPATH += $$(MINGW_HOME)/include/opencv4
 INCLUDEPATH += $$(MINGW_HOME)/include/opencv4/opencv2

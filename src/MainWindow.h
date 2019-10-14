@@ -11,6 +11,8 @@
 #include <QtWidgets/QtWidgets>
 #include <opencv4/opencv2/opencv.hpp>
 
+#include "PageViewer.h"
+
 class MainWindow : public QMainWindow
 {
 	Q_OBJECT
@@ -19,63 +21,72 @@ class MainWindow : public QMainWindow
 		MainWindow(QWidget *parent = nullptr);
 
 	private slots:
-		void clicked(const QModelIndex &index);
+		void about();
+		void adjustImage();
+		void selectFile(const QModelIndex &index);
+		void setRootFolder();
+		void updateDpi();
+		void updatePageSizeTemplate();
+		void updatePaperSize();
+		void updatePixelPaperMode();
+		void updatePixelSize();
 
-		void SizeSourceChanged();
-		void pageSizeSelected();
-		void pagePixelSizeChanged();
-		void pagePaperSizedChanged();
-		void pageDpiChanged();
-
-		void sizeChanged();
-		void controlChanged();
 
 	private:
-		cv::Mat QImageToCvMat(const QImage &inImage);
-		QImage cvMatToQImage(const cv::Mat &inMat);
-		QImage scan(const QImage &photo);
-		void scale();
+		// GUI
+		void createActions();
+		void createConnections();
+		void createControlObject();
+		void createLayout();
+
+		// Settings
+		QString readRootFolder();
+		void writeRootFolder(QString rootFolder);
+
+		// Logic
 		void adjust();
+		QImage cvMatToQImage(const cv::Mat &inMat);
+		cv::Mat QImageToCvMat(const QImage &inImage);
 		void save();
+		void scale();
+		QImage scan(const QImage &photo);
+
 
 	private:
-		QLabel *original;
-		QLabel *page;
+		// File browser
 		QString fileName;
-
-		QImage imgPageOriginal;
-		QImage imgPageScalled;
-		QImage imgPageProcessed;
-
-		// File brower
 		QFileSystemModel *fileModel;
 		QTreeView *fileBrowser;
 
 		// Image size settings
 		QGroupBox *gbSize;
-
 		QLabel *lbInputImageSize;
-
-		QRadioButton *rbAspectRatioLocked;
+		QRadioButton *rbAspectRatioLock;
 		QRadioButton *rbAspectRatioFree;
-		QRadioButton *rbPixelLock;
-		QRadioButton *rbPaperLock;
-
-		QComboBox *cbPageSize;
+		QRadioButton *rbPixelSizeMode;
+		QRadioButton *rbPaperSizeMode;
+		QComboBox *cbPageSizeTemplate;
 		QLineEdit *leDpi;
-
 		QLineEdit *lePixelWidth;
 		QLineEdit *lePixelHeight;
-		QLineEdit *lePhysicalWidth;
-		QLineEdit *lePhysicalHeight;
-		QComboBox *cbUnits;
+		QLineEdit *lePaperWidth;
+		QLineEdit *lePaperHeight;
+		QComboBox *cbPaperUnits;
 
+		// Image color adjustment settings
 		QGroupBox *gbAdjust;
 		QSlider *slWhite;
 		QSlider *slBlack;
 		QSpinBox *sbWhite;
 		QSpinBox *sbBlack;
 		QPushButton *pbSave;
+
+		// Page viewers
+		PageViewer *viewerOriginal;
+		PageViewer *viewerPage;
+		QImage imgPageOriginal;
+		QImage imgPageScalled;
+		QImage imgPageProcessed;
 };
 
 
