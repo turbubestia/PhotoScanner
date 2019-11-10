@@ -179,7 +179,7 @@ void MainWindow::createControlObject() {
 
 	// ------------------------------------------------------------------------
 	// Page color adjustment
-	gbAdjust = new QGroupBox;
+	gbAdjust = new QGroupBox("Color Control");
 
 	slWhite = new QSlider(Qt::Horizontal);
 	sbWhite = new QSpinBox;
@@ -375,17 +375,22 @@ QImage MainWindow::scan(const QImage &inImage) {
 	cv::cvtColor(imgA, imgB, cv::COLOR_BGRA2GRAY);
 
 	// Create a border with the average color of top line
+	int border = 10;
 	int avg = 0;
 	for(int x = 0; x < imgB.cols; x++) {
 		avg += imgB.data[x];
 	}
 	avg /= imgB.cols;
-	cv::copyMakeBorder(imgB, imgA, 0,0,5,5, cv::BORDER_CONSTANT, cv::Scalar(avg));
+	cv::copyMakeBorder(imgB, imgA, 0,0,border,border, cv::BORDER_CONSTANT, cv::Scalar(avg));
 
 	cv::bilateralFilter(imgA, imgB, 5, 35, 95);
-	cv::adaptiveThreshold(imgB, imgA, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, 91, 4);
-	cv::medianBlur(imgA, imgB, 9);
+	cv::adaptiveThreshold(imgB, imgA, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, 91, 5);
+	cv::medianBlur(imgA, imgB, 5);
 	cv::Canny(imgB, imgA, 200, 250);
+
+	//cv::cvtColor(imgA, imgB, cv::COLOR_GRAY2BGR);
+	//return cvMatToQImage(imgB);
+	// ------------------------------------------------------------------------
 
 	// Find contour
 	std::vector<std::vector<cv::Point>> contours;
@@ -393,10 +398,10 @@ QImage MainWindow::scan(const QImage &inImage) {
 	cv::findContours(imgA, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
 	// Filter the contour to that that is the biggest closed and convex
-	double MAX_CONTOUR_AREA = (width - 10) * (height - 10);
+	double MAX_CONTOUR_AREA = (width - border) * (height - border);
 	double maxAreaFound = MAX_CONTOUR_AREA * 0.5;
 
-	std::vector<cv::Point> page = {{5,5}, {5, height-5}, {width-5, height-5}, {width-5, 5}};
+	std::vector<cv::Point> page = {{border,border}, {border, height-2*border}, {width-2*border, height-2*border}, {width-2*border, border}};
 
 	for(int i = 0; i < (int)contours.size(); i++) {
 		std::vector<cv::Point> cnt = contours.at(i);
@@ -436,10 +441,10 @@ QImage MainWindow::scan(const QImage &inImage) {
 
 	// Map point back to the original image size
 	std::vector<cv::Point> aux;
-	aux.push_back((page.at(topLeft) + cv::Point(2-5,2)) / ratio);
-	aux.push_back((page.at(bottomLeft) + cv::Point(2-5,-2)) / ratio);
-	aux.push_back((page.at(bottomRight) + cv::Point(-2-5,-2)) / ratio);
-	aux.push_back((page.at(topRight) + cv::Point(-2-5,2)) / ratio);
+	aux.push_back((page.at(topLeft) + cv::Point(2-border,2)) / ratio);
+	aux.push_back((page.at(bottomLeft) + cv::Point(2-border,-2)) / ratio);
+	aux.push_back((page.at(bottomRight) + cv::Point(-2-border,-2)) / ratio);
+	aux.push_back((page.at(topRight) + cv::Point(-2-border,2)) / ratio);
 	page = aux;
 
 	// Draw contour in the original image
@@ -474,9 +479,9 @@ QImage MainWindow::scan(const QImage &inImage) {
 	cv::Mat outMat;
 	cv::warpPerspective(inMat, imgA, M, cv::Size(pageWidth, pageHeight));
 	// Smooth by preserve edges
-	cv::bilateralFilter(imgA, imgB, 5, 35, 95);
+	//cv::bilateralFilter(imgA, imgB, 5, 35, 95);
 
-	return cvMatToQImage(imgB);
+	return cvMatToQImage(imgA);
 }
 
 void MainWindow::selectFile(const QModelIndex &index) {
