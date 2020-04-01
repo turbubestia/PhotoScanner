@@ -35,7 +35,9 @@ void MainWindow::about() {
 
 }
 
+/* Perform color adjustments to the image */
 void MainWindow::adjust() {
+	qDebug() << "MainWindow::adjust()";
 	if (imgPageOriginal.isNull() || fileName.isEmpty()) {
 		imgPageProcessed = QImage();
 		return;
@@ -55,11 +57,11 @@ void MainWindow::adjust() {
 		data[i] = cv::saturate_cast<uchar>( alpha*( data[i] ) + beta );
 	}
 
-	//page->setPixmap(QPixmap::fromImage(imgPageProcessed));
 	viewerPage->setPixmap(QPixmap::fromImage(imgPageProcessed));
 }
 
 void MainWindow::adjustImage() {
+	qDebug() << "MainWindow::adjustImage()";
 	adjust();
 }
 
@@ -98,6 +100,8 @@ void MainWindow::createConnections() {
 	connect(sbBlack, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::adjustImage); //@suppress("Invalid arguments")
 
 	connect(pbSave, &QPushButton::clicked, this, &MainWindow::save);
+
+	connect(corners, &PageMapper::cornerChanged, this, &MainWindow::updateScanPage);
 }
 
 void MainWindow::createControlObject() {
@@ -108,7 +112,7 @@ void MainWindow::createControlObject() {
 
 	fileModel = new QFileSystemModel;
 	fileModel->setRootPath(rootFolder);
-	fileModel->setNameFilters({"*.jpg", "*.jpeg"});
+	fileModel->setNameFilters({"*.jpg", "*.jpeg", "*.png"});
 	fileModel->setNameFilterDisables(false);
 
 	fileBrowser = new QTreeView();
@@ -122,6 +126,8 @@ void MainWindow::createControlObject() {
 	// Both original and process page image
 	viewerOriginal = new PageViewer;
 	viewerOriginal->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+
+	corners = new PageMapper(viewerOriginal);
 
 	viewerPage = new PageViewer;
 	viewerPage->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
@@ -322,6 +328,7 @@ cv::Mat MainWindow::QImageToCvMat(const QImage &inImage) {
 		}
 
 		default:
+			qDebug() << "Unsupported format";
 			return cv::Mat();
 	}
 }
@@ -348,6 +355,8 @@ void MainWindow::save() {
 }
 
 void MainWindow::scale() {
+	qDebug() << "MainWindow::scale()";
+
 	if (imgPageOriginal.isNull() || fileName.isEmpty()) {
 		return;
 	}
@@ -355,10 +364,22 @@ void MainWindow::scale() {
 	int w = lePixelWidth->text().toInt();
 	int h = lePixelHeight->text().toInt();
 
-	imgPageScalled = imgPageOriginal.scaled(w, h, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+	if (w == 0 || h == 0) {
+		return;
+	}
+
+	// Process the image with openCV
+	cv::Mat inMat = QImageToCvMat(imgPageOriginal);
+	// Intermediate working copies
+	cv::Mat imgA = cv::Mat(h,w,CV_8UC4);
+
+	cv::resize(inMat, imgA, imgA.size(), 0, 0, cv::INTER_CUBIC );
+	imgPageScalled = cvMatToQImage(imgA);
 }
 
-QImage MainWindow::scan(const QImage &inImage) {
+void MainWindow::findPage(const QImage &inImage) {
+	qDebug() << "MainWindow::findPage()";
+
 	// Process the image with openCV
 	cv::Mat inMat = QImageToCvMat(inImage);
 	// Intermediate working copies
@@ -447,25 +468,43 @@ QImage MainWindow::scan(const QImage &inImage) {
 	aux.push_back((page.at(topRight) + cv::Point(-2-border,2)) / ratio);
 	page = aux;
 
-	// Draw contour in the original image
-	contours.clear();
-	contours.push_back(page);
-	cv::drawContours(inMat, contours, -1, cv::Scalar(255,255,255), 5);
+	disconnect(corners, &PageMapper::cornerChanged, this, &MainWindow::updateScanPage);
+	for (int i = 0; i < 4; i++) {
+		QPoint pos = QPoint(page.at(i).x, page.at(i).y);
+		corners->setCornerPosition(i,pos);
+	}
+	connect(corners, &PageMapper::cornerChanged, this, &MainWindow::updateScanPage);
+
+	viewerOriginal->update();
+}
+
+QImage MainWindow::scanPage(const QImage &inImage) {
+	qDebug() << "MainWindow::scanPage()";
+
+	// Process the image with openCV
+	cv::Mat inMat = QImageToCvMat(inImage);
+	// Intermediate working copies
+	cv::Mat imgA;
+
+	QPoint p0 = corners->getCornerPosition(0);
+	QPoint p1 = corners->getCornerPosition(1);
+	QPoint p2 = corners->getCornerPosition(2);
+	QPoint p3 = corners->getCornerPosition(3);
 
 	// Mean page size
-	double h1 = fabs(page.at(0).y - page.at(1).y);
-	double h2 = fabs(page.at(2).y - page.at(3).y);
-	double w1 = fabs(page.at(1).x - page.at(2).x);
-	double w2 = fabs(page.at(0).x - page.at(3).x);
+	double h1 = fabs(p0.y() - p1.y());
+	double h2 = fabs(p2.y() - p3.y());
+	double w1 = fabs(p1.x() - p2.x());
+	double w2 = fabs(p0.x() - p3.x());
 	int pageHeight = (h1 + h2)/2;
 	int pageWidth = (w1 + w2)/2;
 
 	// Source and target page points
 	std::vector<cv::Point2f> sPoints;
-	sPoints.push_back(cv::Point2f(page.at(0).x, page.at(0).y));
-	sPoints.push_back(cv::Point2f(page.at(1).x, page.at(1).y));
-	sPoints.push_back(cv::Point2f(page.at(2).x, page.at(2).y));
-	sPoints.push_back(cv::Point2f(page.at(3).x, page.at(3).y));
+	sPoints.push_back(cv::Point2f(p0.x(), p0.y()));
+	sPoints.push_back(cv::Point2f(p1.x(), p1.y()));
+	sPoints.push_back(cv::Point2f(p2.x(), p2.y()));
+	sPoints.push_back(cv::Point2f(p3.x(), p3.y()));
 
 	std::vector<cv::Point2f> tPoints;
 	tPoints.push_back(cv::Point2f(0,0));
@@ -478,13 +517,13 @@ QImage MainWindow::scan(const QImage &inImage) {
 	// And apply it
 	cv::Mat outMat;
 	cv::warpPerspective(inMat, imgA, M, cv::Size(pageWidth, pageHeight));
-	// Smooth by preserve edges
-	//cv::bilateralFilter(imgA, imgB, 5, 35, 95);
 
 	return cvMatToQImage(imgA);
 }
 
 void MainWindow::selectFile(const QModelIndex &index) {
+	qDebug() << "MainWindow::selectFile()";
+
 	fileName = fileModel->filePath(index);
 	bool fromScanned = fileName.contains("_scanned");
 
@@ -503,15 +542,16 @@ void MainWindow::selectFile(const QModelIndex &index) {
 		// The the opened image
 		QImageReader reader(fileName);
 		reader.setAutoTransform(true);
-		const QImage inImage = reader.read();
+		imgOriginal = reader.read();
 
 		//original->setPixmap(QPixmap::fromImage(inImage));
-		viewerOriginal->setPixmap(QPixmap::fromImage(inImage));
+		viewerOriginal->setPixmap(QPixmap::fromImage(imgOriginal));
 
-		lbInputImageSize->setText(QString("%1 x %2 px").arg(inImage.width()).arg(inImage.height()));
+		lbInputImageSize->setText(QString("%1 x %2 px").arg(imgOriginal.width()).arg(imgOriginal.height()));
 
 		// Scan it
-		imgPageOriginal = scan(inImage);
+		findPage(imgOriginal);
+		imgPageOriginal = scanPage(imgOriginal);
 
 		updatePageSizeTemplate();
 
@@ -530,6 +570,8 @@ void MainWindow::setRootFolder() {
 }
 
 void MainWindow::updateDpi() {
+	qDebug() << "MainWindow::updateDpi()";
+
 	if (cbPageSizeTemplate->currentIndex() == 0) {
 		updatePixelSize();
 	} else if (cbPageSizeTemplate->currentIndex() == 1) {
@@ -544,6 +586,8 @@ void MainWindow::updateDpi() {
 }
 
 void MainWindow::updatePageSizeTemplate() {
+	qDebug() << "MainWindow::updatePageSizeTemplate()";
+
 	updatePixelPaperMode();
 
 	if (cbPageSizeTemplate->currentIndex() == 1) {
@@ -595,6 +639,8 @@ void MainWindow::updatePageSizeTemplate() {
 }
 
 void MainWindow::updatePaperSize() {
+	qDebug() << "MainWindow::updatePaperSize()";
+
 	double dpi = leDpi->text().toDouble();
 	double pw = lePaperWidth->text().toDouble();
 	double ph = lePaperHeight->text().toDouble();
@@ -629,6 +675,8 @@ void MainWindow::updatePaperSize() {
 }
 
 void MainWindow::updatePixelPaperMode() {
+	qDebug() << "MainWindow::updatePixelPaperMode()";
+
 	if (cbPageSizeTemplate->currentIndex() == 1) {
 		if (rbPixelSizeMode->isChecked()) {
 			lePixelWidth->setEnabled(true);
@@ -650,6 +698,7 @@ void MainWindow::updatePixelPaperMode() {
 }
 
 void MainWindow::updatePixelSize() {
+	qDebug() << "MainWindow::updatePixelSize()";
 
 	double dpi = leDpi->text().toDouble();
 	int pw = lePixelWidth->text().toInt();
@@ -672,6 +721,15 @@ void MainWindow::updatePixelSize() {
 
 	lePaperWidth->setText(QString::number(w, 'f', 1));
 	lePaperHeight->setText(QString::number(h, 'f', 1));
+
+	scale();
+	adjust();
+}
+
+void MainWindow::updateScanPage() {
+	qDebug() << "MainWindow::updateScanPage()";
+
+	imgPageOriginal = scanPage(imgOriginal);
 
 	scale();
 	adjust();

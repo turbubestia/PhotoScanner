@@ -10,10 +10,12 @@ TEMPLATE = app
 
 SOURCES += src/main.cpp \
 	src/MainWindow.cpp \
-	src/PageViewer.cpp
+	src/PageViewer.cpp \
+	src/PageMapper.cpp
 	
 HEADERS += src/MainWindow.h \
-	src/PageViewer.h
+	src/PageViewer.h \
+	src/PageMapper.h
 
 INCLUDEPATH += $$(MINGW_HOME)/include/opencv4
 INCLUDEPATH += $$(MINGW_HOME)/include/opencv4/opencv2

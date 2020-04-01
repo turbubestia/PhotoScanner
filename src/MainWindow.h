@@ -12,6 +12,7 @@
 #include <opencv4/opencv2/opencv.hpp>
 
 #include "PageViewer.h"
+#include "PageMapper.h"
 
 class MainWindow : public QMainWindow
 {
@@ -30,6 +31,7 @@ class MainWindow : public QMainWindow
 		void updatePaperSize();
 		void updatePixelPaperMode();
 		void updatePixelSize();
+		void updateScanPage();
 
 
 	private:
@@ -49,7 +51,8 @@ class MainWindow : public QMainWindow
 		cv::Mat QImageToCvMat(const QImage &inImage);
 		void save();
 		void scale();
-		QImage scan(const QImage &photo);
+		void findPage(const QImage &inImage);
+		QImage scanPage(const QImage &inImage);
 
 
 	private:
@@ -84,6 +87,8 @@ class MainWindow : public QMainWindow
 		// Page viewers
 		PageViewer *viewerOriginal;
 		PageViewer *viewerPage;
+		PageMapper *corners;
+		QImage imgOriginal;
 		QImage imgPageOriginal;
 		QImage imgPageScalled;
 		QImage imgPageProcessed;
