@@ -6,8 +6,8 @@
  */
 
 #include <QtWidgets/QApplication>
+
 #include "MainWindow.h"
-#include "PageViewer.h"
 
 #include "stdio.h"
 void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {

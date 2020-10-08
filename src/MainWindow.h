@@ -11,8 +11,9 @@
 #include <QtWidgets/QtWidgets>
 #include <opencv4/opencv2/opencv.hpp>
 
-#include "PageViewer.h"
-#include "PageMapper.h"
+#include "LayerGraphicWidget.h"
+#include "PixelLayer.h"
+#include "RoiEditorLayer.h"
 
 class MainWindow : public QMainWindow
 {
@@ -33,12 +34,11 @@ class MainWindow : public QMainWindow
 		void updatePixelSize();
 		void updateScanPage();
 
-
 	private:
 		// GUI
 		void createActions();
 		void createConnections();
-		void createControlObject();
+		void createObjects();
 		void createLayout();
 
 		// Settings
@@ -47,13 +47,10 @@ class MainWindow : public QMainWindow
 
 		// Logic
 		void adjust();
-		QImage cvMatToQImage(const cv::Mat &inMat);
-		cv::Mat QImageToCvMat(const QImage &inImage);
 		void save();
 		void scale();
-		void findPage(const QImage &inImage);
-		QImage scanPage(const QImage &inImage);
-
+		void findPage();
+		void scanPage();
 
 	private:
 		// File browser
@@ -85,13 +82,18 @@ class MainWindow : public QMainWindow
 		QPushButton *pbSave;
 
 		// Page viewers
-		PageViewer *viewerOriginal;
-		PageViewer *viewerPage;
-		PageMapper *corners;
 		QImage imgOriginal;
 		QImage imgPageOriginal;
-		QImage imgPageScalled;
+		QImage imgPageScaled;
 		QImage imgPageProcessed;
+
+		// Image viewer
+        LayerGraphicWidget *viewerOriginal;
+        PixelLayer *imageLayerOriginal;
+        RoiEditorLayer *roiEditorLayerOriginal;
+
+        LayerGraphicWidget *viewerPage;
+        PixelLayer *imageLayerPage;
 };
 
 

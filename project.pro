@@ -8,15 +8,24 @@ Release: TARGET = pscan
 
 TEMPLATE = app
 
-SOURCES += src/main.cpp \
-	src/MainWindow.cpp \
-	src/PageViewer.cpp \
-	src/PageMapper.cpp
-	
-HEADERS += src/MainWindow.h \
-	src/PageViewer.h \
-	src/PageMapper.h
+SOURCES += src/lib/AbstractLayer.cpp \
+           src/lib/LayerGraphicWidget.cpp \
+           src/lib/PixelLayer.cpp \
+           src/lib/RoiEditorLayer.cpp \
+           src/lib/Utils.cpp
 
+HEADERS += src/lib/AbstractLayer.h \
+           src/lib/LayerGraphicWidget.h \
+           src/lib/PixelLayer.h \
+           src/lib/RoiEditorLayer.h \
+           src/lib/Utils.h
+
+SOURCES += src/main.cpp \
+	src/MainWindow.cpp
+	
+HEADERS += src/MainWindow.h
+
+INCLUDEPATH += src/lib
 INCLUDEPATH += $$(MINGW_HOME)/include/opencv4
 INCLUDEPATH += $$(MINGW_HOME)/include/opencv4/opencv2
 

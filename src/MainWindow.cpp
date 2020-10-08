@@ -12,7 +12,9 @@
 
 #include <opencv4/opencv2/opencv.hpp>
 #include <opencv4/opencv2/core/saturate.hpp>
+
 #include "MainWindow.h"
+#include "Utils.h"
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
@@ -21,10 +23,8 @@ MainWindow::MainWindow(QWidget *parent)
 	resize(QGuiApplication::primaryScreen()->availableSize() * 4/5);
 
 	createActions();
-
-	createControlObject();
+	createObjects();
 	createLayout();
-
 	createConnections();
 
 	sbWhite->setValue(235);
@@ -43,7 +43,7 @@ void MainWindow::adjust() {
 		return;
 	}
 
-	imgPageProcessed = imgPageScalled.copy();
+	imgPageProcessed = imgPageScaled.copy();
 
 	// Improve brightness and contrast
 	int indentRight = sbWhite->value();
@@ -57,7 +57,10 @@ void MainWindow::adjust() {
 		data[i] = cv::saturate_cast<uchar>( alpha*( data[i] ) + beta );
 	}
 
-	viewerPage->setPixmap(QPixmap::fromImage(imgPageProcessed));
+	imageLayerPage->setImage(imgPageProcessed);
+	// Make the canvas size equal to the image size
+	viewerPage->resizeCanvasToLayer(0);
+	viewerPage->update();
 }
 
 void MainWindow::adjustImage() {
@@ -101,10 +104,10 @@ void MainWindow::createConnections() {
 
 	connect(pbSave, &QPushButton::clicked, this, &MainWindow::save);
 
-	connect(corners, &PageMapper::cornerChanged, this, &MainWindow::updateScanPage);
+	connect(roiEditorLayerOriginal, &RoiEditorLayer::changed, this, &MainWindow::updateScanPage);
 }
 
-void MainWindow::createControlObject() {
+void MainWindow::createObjects() {
 
 	// ------------------------------------------------------------------------
 	// File browser
@@ -124,13 +127,23 @@ void MainWindow::createControlObject() {
 
 	// ------------------------------------------------------------------------
 	// Both original and process page image
-	viewerOriginal = new PageViewer;
+	viewerOriginal = new LayerGraphicWidget;
+	imageLayerOriginal = new PixelLayer;
+	roiEditorLayerOriginal = new RoiEditorLayer;
+
 	viewerOriginal->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+	viewerOriginal->addLayer(imageLayerOriginal);
+	viewerOriginal->addLayer(roiEditorLayerOriginal);
+	viewerOriginal->setCoreInteration(false);
 
-	corners = new PageMapper(viewerOriginal);
+	roiEditorLayerOriginal->setVisible(false);
 
-	viewerPage = new PageViewer;
+	viewerPage = new LayerGraphicWidget;
+	imageLayerPage = new PixelLayer;
+
 	viewerPage->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+	viewerPage->addLayer(imageLayerPage);
+	viewerPage->setCoreInteration(false);
 
 	// ------------------------------------------------------------------------
 	// Page size controls
@@ -287,52 +300,6 @@ void MainWindow::createLayout() {
 	splitter->setSizes(QList<int>({w1,w2}));
 }
 
-QImage MainWindow::cvMatToQImage(const cv::Mat &inMat) {
-	switch(inMat.type()) {
-		case CV_8UC4: {
-			QImage outImage(inMat.data, inMat.cols, inMat.rows, static_cast<int>(inMat.step), QImage::Format_ARGB32);
-			return outImage.rgbSwapped();
-		}
-
-		case CV_8UC3: {
-			QImage outImage(inMat.data, inMat.cols, inMat.rows, static_cast<int>(inMat.step), QImage::Format_RGB888);
-			return outImage.rgbSwapped();
-		}
-
-		default:
-			return QImage();
-	}
-}
-
-cv::Mat MainWindow::QImageToCvMat(const QImage &inImage) {
-	switch (inImage.format()) {
-		case QImage::Format_ARGB32:
-		case QImage::Format_ARGB32_Premultiplied: {
-			cv::Mat outMat(inImage.height(), inImage.width(), CV_8UC4, const_cast<uchar*>(inImage.bits()), static_cast<size_t>(inImage.bytesPerLine()));
-			return outMat.clone();
-		}
-
-		case QImage::Format_RGB32: {
-			cv::Mat mat(inImage.height(), inImage.width(), CV_8UC4, const_cast<uchar*>(inImage.bits()),
-					static_cast<size_t>(inImage.bytesPerLine()));
-			cv::Mat outMat;
-			cv::cvtColor(mat, outMat, cv::COLOR_BGRA2BGR);
-			return outMat;
-		}
-
-		case QImage::Format_RGB888: {
-			QImage swapped = inImage.rgbSwapped();
-			cv::Mat outMat(swapped.height(), swapped.width(), CV_8UC3,const_cast<uchar*>(swapped.bits()),
-					static_cast<size_t>(swapped.bytesPerLine()));
-			return outMat.clone();
-		}
-
-		default:
-			qDebug() << "Unsupported format";
-			return cv::Mat();
-	}
-}
-
 QString MainWindow::readRootFolder() {
 	QSettings settings("./settings.ini", QSettings::IniFormat);
 	settings.beginGroup("FileBrowser");
@@ -374,14 +341,14 @@ void MainWindow::scale() {
 	cv::Mat imgA = cv::Mat(h,w,CV_8UC4);
 
 	cv::resize(inMat, imgA, imgA.size(), 0, 0, cv::INTER_CUBIC );
-	imgPageScalled = cvMatToQImage(imgA);
+	imgPageScaled = cvMatToQImage(imgA);
 }
 
-void MainWindow::findPage(const QImage &inImage) {
+void MainWindow::findPage() {
 	qDebug() << "MainWindow::findPage()";
 
 	// Process the image with openCV
-	cv::Mat inMat = QImageToCvMat(inImage);
+	cv::Mat inMat = QImageToCvMat(imgOriginal);
 	// Intermediate working copies
 	cv::Mat imgA;
 	cv::Mat imgB;
@@ -406,12 +373,8 @@ void MainWindow::findPage(const QImage &inImage) {
 
 	cv::bilateralFilter(imgA, imgB, 5, 35, 95);
 	cv::adaptiveThreshold(imgB, imgA, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, 91, 5);
-	cv::medianBlur(imgA, imgB, 5);
+	cv::GaussianBlur(imgA, imgB, cv::Size(5,5), 0);
 	cv::Canny(imgB, imgA, 200, 250);
-
-	//cv::cvtColor(imgA, imgB, cv::COLOR_GRAY2BGR);
-	//return cvMatToQImage(imgB);
-	// ------------------------------------------------------------------------
 
 	// Find contour
 	std::vector<std::vector<cv::Point>> contours;
@@ -468,28 +431,28 @@ void MainWindow::findPage(const QImage &inImage) {
 	aux.push_back((page.at(topRight) + cv::Point(-2-border,2)) / ratio);
 	page = aux;
 
-	disconnect(corners, &PageMapper::cornerChanged, this, &MainWindow::updateScanPage);
+	disconnect(roiEditorLayerOriginal, &RoiEditorLayer::changed, this, &MainWindow::updateScanPage);
 	for (int i = 0; i < 4; i++) {
 		QPoint pos = QPoint(page.at(i).x, page.at(i).y);
-		corners->setCornerPosition(i,pos);
+		roiEditorLayerOriginal->setCornerPosition(i,pos);
 	}
-	connect(corners, &PageMapper::cornerChanged, this, &MainWindow::updateScanPage);
+	connect(roiEditorLayerOriginal, &RoiEditorLayer::changed, this, &MainWindow::updateScanPage);
 
 	viewerOriginal->update();
 }
 
-QImage MainWindow::scanPage(const QImage &inImage) {
+void MainWindow::scanPage() {
 	qDebug() << "MainWindow::scanPage()";
 
 	// Process the image with openCV
-	cv::Mat inMat = QImageToCvMat(inImage);
+	cv::Mat inMat = QImageToCvMat(imgOriginal);
 	// Intermediate working copies
 	cv::Mat imgA;
 
-	QPoint p0 = corners->getCornerPosition(0);
-	QPoint p1 = corners->getCornerPosition(1);
-	QPoint p2 = corners->getCornerPosition(2);
-	QPoint p3 = corners->getCornerPosition(3);
+	QPoint p0 = roiEditorLayerOriginal->getCornerPosition(0);
+	QPoint p1 = roiEditorLayerOriginal->getCornerPosition(1);
+	QPoint p2 = roiEditorLayerOriginal->getCornerPosition(2);
+	QPoint p3 = roiEditorLayerOriginal->getCornerPosition(3);
 
 	// Mean page size
 	double h1 = fabs(p0.y() - p1.y());
@@ -515,10 +478,9 @@ QImage MainWindow::scanPage(const QImage &inImage) {
 	// Get perspective matrix
 	cv::Mat M = cv::getPerspectiveTransform(sPoints, tPoints);
 	// And apply it
-	cv::Mat outMat;
 	cv::warpPerspective(inMat, imgA, M, cv::Size(pageWidth, pageHeight));
 
-	return cvMatToQImage(imgA);
+	imgPageOriginal = cvMatToQImage(imgA);
 }
 
 void MainWindow::selectFile(const QModelIndex &index) {
@@ -528,10 +490,25 @@ void MainWindow::selectFile(const QModelIndex &index) {
 	bool fromScanned = fileName.contains("_scanned");
 
 	if (fromScanned || fileModel->isDir(index)) {
-		//original->setPixmap(QPixmap());
-		//page->setPixmap(QPixmap());
-		viewerOriginal->setPixmap(QPixmap());
-		viewerPage->setPixmap(QPixmap());
+
+	    pbSave->setEnabled(false);
+
+	    imageLayerOriginal->clear();
+	    imageLayerPage->clear();
+	    roiEditorLayerOriginal->setVisible(false);
+
+	    viewerOriginal->resizeCanvasToLayer(0);
+	    viewerOriginal->update();
+	    viewerOriginal->setVisible(false);
+
+	    QImageReader reader(fileName);
+        reader.setAutoTransform(true);
+        QImage temp = reader.read();
+
+        imageLayerPage->setImage(temp);
+	    viewerPage->resizeCanvasToLayer(0);
+	    viewerPage->update();
+
 		imgPageOriginal = QImage();
 		fileName = QString();
 
@@ -539,20 +516,28 @@ void MainWindow::selectFile(const QModelIndex &index) {
 		gbAdjust->setEnabled(false);
 
 	} else {
-		// The the opened image
+
+	    pbSave->setEnabled(true);
+
 		QImageReader reader(fileName);
 		reader.setAutoTransform(true);
 		imgOriginal = reader.read();
 
-		//original->setPixmap(QPixmap::fromImage(inImage));
-		viewerOriginal->setPixmap(QPixmap::fromImage(imgOriginal));
+		// Update image viewer
+		imageLayerOriginal->setImage(imgOriginal);
+		roiEditorLayerOriginal->setVisible(true);
+		viewerOriginal->setVisible(true);
+		viewerOriginal->resizeCanvasToLayer(0);
+		viewerOriginal->update();
 
+		// Image size information
 		lbInputImageSize->setText(QString("%1 x %2 px").arg(imgOriginal.width()).arg(imgOriginal.height()));
 
 		// Scan it
-		findPage(imgOriginal);
-		imgPageOriginal = scanPage(imgOriginal);
+		findPage();
+		scanPage();
 
+		// Update page size dimensions
 		updatePageSizeTemplate();
 
 		gbSize->setEnabled(true);
@@ -729,8 +714,7 @@ void MainWindow::updatePixelSize() {
 void MainWindow::updateScanPage() {
 	qDebug() << "MainWindow::updateScanPage()";
 
-	imgPageOriginal = scanPage(imgOriginal);
-
+	scanPage();
 	scale();
 	adjust();
 }
