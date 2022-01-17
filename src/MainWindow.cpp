@@ -28,7 +28,7 @@ MainWindow::MainWindow(QWidget *parent)
 	createConnections();
 
 	sbWhite->setValue(235);
-	sbBlack->setValue(20);
+	sbBlack->setValue(40);
 }
 
 void MainWindow::about() {
@@ -355,8 +355,17 @@ void MainWindow::findPage() {
 
 	// Re-scale to process it faster
 	int height = 800;
-	double ratio = (double) height / (double) inMat.rows;
-	int width = inMat.cols * ratio;
+	int width = 800;
+	double ratio = 1;
+
+	if (inMat.cols > inMat.rows) {
+	    ratio = (double) width / (double) inMat.cols;
+	    height = inMat.rows * ratio;
+	} else {
+	    ratio = (double) height / (double) inMat.rows;
+	    width = inMat.cols * ratio;
+	}
+
 	cv::resize(inMat, imgA, cv::Size(width, height));
 
 	// Border detection
@@ -369,24 +378,32 @@ void MainWindow::findPage() {
 		avg += imgB.data[x];
 	}
 	avg /= imgB.cols;
-	cv::copyMakeBorder(imgB, imgA, 0,0,border,border, cv::BORDER_CONSTANT, cv::Scalar(avg));
 
-	cv::bilateralFilter(imgA, imgB, 5, 35, 95);
-	cv::adaptiveThreshold(imgB, imgA, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, 91, 5);
-	cv::GaussianBlur(imgA, imgB, cv::Size(5,5), 0);
-	cv::Canny(imgB, imgA, 200, 250);
+	cv::copyMakeBorder(imgB, imgA, 0,0,border,border, cv::BORDER_CONSTANT, cv::Scalar(avg));
+	//cv::bilateralFilter(imgA, imgB, 5, 35, 95);
+	cv::GaussianBlur(imgA, imgB, cv::Size(7,7), 0);
+	//cv::adaptiveThreshold(imgB, imgA, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, 91, 5);
+	cv::threshold(imgB, imgA, 0, 255, cv::THRESH_BINARY+cv::THRESH_OTSU);
+
+	//cv::imshow("threshold", imgA);
+
+	//cv::GaussianBlur(imgA, imgB, cv::Size(5,5), 0);
+	cv::Canny(imgA, imgB, 200, 250);
+
+	//cv::imshow("Canny", imgB);
 
 	// Find contour
 	std::vector<std::vector<cv::Point>> contours;
 	std::vector<cv::Vec4i> hierarchy;
-	cv::findContours(imgA, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+	cv::findContours(imgB, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
 	// Filter the contour to that that is the biggest closed and convex
 	double MAX_CONTOUR_AREA = (width - border) * (height - border);
-	double maxAreaFound = MAX_CONTOUR_AREA * 0.5;
+	double maxAreaFound = MAX_CONTOUR_AREA * 0.25;
 
 	std::vector<cv::Point> page = {{border,border}, {border, height-2*border}, {width-2*border, height-2*border}, {width-2*border, border}};
 
+	//int c = 0;
 	for(int i = 0; i < (int)contours.size(); i++) {
 		std::vector<cv::Point> cnt = contours.at(i);
 		std::vector<cv::Point> approx_cnt;
@@ -403,8 +420,13 @@ void MainWindow::findPage() {
 		if (rule) {
 			maxAreaFound = area;
 			page = approx_cnt;
+			//qDebug() << "found" << i;
+			//c = i;
 		}
 	}
+
+	//cv::drawContours(imgB, contours, c, cv::Scalar(255,255,255), 3);
+	//cv::imshow("findContours", imgB);
 
 	// Sort contour corners
 	int topLeft = 0;
