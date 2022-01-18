@@ -21,7 +21,9 @@ void messageHandler(QtMsgType type, const QMessageLogContext &context, const QSt
 
 int main(int argc, char *argv[])
 {
-	qInstallMessageHandler(messageHandler);
+	qInstallMessageHandler(messageHandler); 
+
+	printf("Starting application\n");
 
 	QApplication app(argc, argv);
 

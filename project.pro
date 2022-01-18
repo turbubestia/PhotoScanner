@@ -1,5 +1,5 @@
 CONFIG -= debug release
-CONFIG += debug_and_release
+CONFIG += debug_and_release console
 
 QT += core gui widgets
 

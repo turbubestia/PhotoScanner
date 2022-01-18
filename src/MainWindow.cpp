@@ -5,10 +5,10 @@
  *      Author: claud
  */
 
-#include <QDebug>
+#include <QtCore/QDebug>
 
 #include <QtWidgets/QtWidgets>
-#include <QtWidgets/QFileSystemModel>
+#include <QtGui/QFileSystemModel>
 
 #include <opencv4/opencv2/opencv.hpp>
 #include <opencv4/opencv2/core/saturate.hpp>
@@ -353,6 +353,8 @@ void MainWindow::findPage() {
 	cv::Mat imgA;
 	cv::Mat imgB;
 
+	//cv::imshow("original", inMat);
+
 	// Re-scale to process it faster
 	int height = 800;
 	int width = 800;
@@ -543,6 +545,7 @@ void MainWindow::selectFile(const QModelIndex &index) {
 
 		QImageReader reader(fileName);
 		reader.setAutoTransform(true);
+		reader.setAllocationLimit(512);
 		imgOriginal = reader.read();
 
 		// Update image viewer
