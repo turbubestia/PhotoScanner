@@ -8,25 +8,15 @@
 #include <QtWidgets/QApplication>
 
 #include "MainWindow.h"
-
-#include "stdio.h"
-void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
-	Q_UNUSED(type);
-	Q_UNUSED(context);
-
-    printf(qUtf8Printable(msg));
-    printf("\n");
-    fflush(stdout);
-}
+#include "ImageProcessor.h"
 
 int main(int argc, char *argv[])
 {
-	qInstallMessageHandler(messageHandler); 
-
 	printf("Starting application\n");
 
 	QApplication app(argc, argv);
 
+#if 0
 	QFile f(":qdarkstyle/style.qss");
 	if (!f.exists()) {
 	    printf("Unable to set stylesheet, file not found\n");
@@ -35,6 +25,7 @@ int main(int argc, char *argv[])
 	    QTextStream ts(&f);
 	    app.setStyleSheet(ts.readAll());
 	}
+#endif
 
 	MainWindow  mainWin;
 	mainWin.show();

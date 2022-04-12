@@ -35,39 +35,6 @@ void MainWindow::about() {
 
 }
 
-/* Perform color adjustments to the image */
-void MainWindow::adjust() {
-	qDebug() << "MainWindow::adjust()";
-	if (imgPageOriginal.isNull() || fileName.isEmpty()) {
-		imgPageProcessed = QImage();
-		return;
-	}
-
-	imgPageProcessed = imgPageScaled.copy();
-
-	// Improve brightness and contrast
-	int indentRight = sbWhite->value();
-	int indentLeft = sbBlack->value();
-	int xdist = indentRight - indentLeft; // indent as index from 0 to 256, for the above picture: indentRight: 235, indentLeft: 15
-	double alpha = 255.0 / xdist;
-	int beta = (int) -(indentLeft* alpha);
-
-	uchar *data = imgPageProcessed.bits();
-	for(int i = 0; i < imgPageProcessed.sizeInBytes(); i++) {
-		data[i] = cv::saturate_cast<uchar>( alpha*( data[i] ) + beta );
-	}
-
-	imageLayerPage->setImage(imgPageProcessed);
-	// Make the canvas size equal to the image size
-	viewerPage->resizeCanvasToLayer(0);
-	viewerPage->update();
-}
-
-void MainWindow::adjustImage() {
-	qDebug() << "MainWindow::adjustImage()";
-	adjust();
-}
-
 void MainWindow::createActions() {
 	QMenu *fileMenu = menuBar()->addMenu("Menu");
 	QAction *rootAction = new QAction("Root folder", this);
@@ -83,28 +50,14 @@ void MainWindow::createActions() {
 void MainWindow::createConnections() {
 	connect(fileBrowser, &QTreeView::clicked, this, &MainWindow::selectFile);
 
-	connect(rbPixelSizeMode, &QRadioButton::clicked, this, &MainWindow::updatePixelPaperMode);
-	connect(rbPaperSizeMode, &QRadioButton::clicked, this, &MainWindow::updatePixelPaperMode);
-
-	connect(cbPageSizeTemplate, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::updatePageSizeTemplate); //@suppress("Invalid arguments")
-	connect(leDpi, &QLineEdit::textEdited, this, &MainWindow::updateDpi);
-
-	connect(lePixelWidth, &QLineEdit::textEdited, this, &MainWindow::updatePixelSize);
-	connect(lePixelHeight, &QLineEdit::textEdited, this, &MainWindow::updatePixelSize);
-	connect(lePaperWidth, &QLineEdit::textEdited, this, &MainWindow::updatePaperSize);
-	connect(lePaperHeight, &QLineEdit::textEdited, this, &MainWindow::updatePaperSize);
+    connect(pageSizeControl, &ImageSizeControl::sizeChanged, this, &MainWindow::imageSizeChanged);
 
 	connect(slWhite, &QSlider::valueChanged, sbWhite, &QSpinBox::setValue);
-	connect(sbWhite, QOverload<int>::of(&QSpinBox::valueChanged), slWhite, &QSlider::setValue); //@suppress("Invalid arguments")
+    connect(sbWhite, QOverload<int>::of(&QSpinBox::valueChanged), slWhite, &QSlider::setValue);
 	connect(slBlack, &QSlider::valueChanged, sbBlack, &QSpinBox::setValue);
-	connect(sbBlack, QOverload<int>::of(&QSpinBox::valueChanged), slBlack, &QSlider::setValue); //@suppress("Invalid arguments")
-
-	connect(sbWhite, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::adjustImage); //@suppress("Invalid arguments")
-	connect(sbBlack, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::adjustImage); //@suppress("Invalid arguments")
+    connect(sbBlack, QOverload<int>::of(&QSpinBox::valueChanged), slBlack, &QSlider::setValue);
 
 	connect(pbSave, &QPushButton::clicked, this, &MainWindow::save);
-
-	connect(roiEditorLayerOriginal, &RoiEditorLayer::changed, this, &MainWindow::updateScanPage);
 }
 
 void MainWindow::createObjects() {
@@ -131,70 +84,22 @@ void MainWindow::createObjects() {
 	imageLayerOriginal = new PixelLayer;
 	roiEditorLayerOriginal = new RoiEditorLayer;
 
-	viewerOriginal->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 	viewerOriginal->addLayer(imageLayerOriginal);
 	viewerOriginal->addLayer(roiEditorLayerOriginal);
-	viewerOriginal->setCoreInteration(false);
+    viewerOriginal->setCoreInteration(true);
 
 	roiEditorLayerOriginal->setVisible(false);
 
 	viewerPage = new LayerGraphicWidget;
 	imageLayerPage = new PixelLayer;
 
-	viewerPage->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 	viewerPage->addLayer(imageLayerPage);
-	viewerPage->setCoreInteration(false);
+    viewerPage->setCoreInteration(true);
 
 	// ------------------------------------------------------------------------
 	// Page size controls
 	gbSize = new QGroupBox("Page size");
-
-	lbInputImageSize = new QLabel("0 x 0 px");
-
-	rbAspectRatioLock = new QRadioButton("Locked");
-	rbAspectRatioFree = new QRadioButton("Free");
-	rbAspectRatioLock->setChecked(true);
-
-	rbPixelSizeMode = new QRadioButton("Pixel");
-	rbPaperSizeMode = new QRadioButton("Paper");
-	rbPaperSizeMode->setChecked(true);
-
-	// The button group allows to group mutually exclusive radio buttons. Without doing this
-	// the group box put all of them in the same mutually exclusive group.
-	QButtonGroup *bg1 = new QButtonGroup;
-	bg1->addButton(rbAspectRatioLock);
-	bg1->addButton(rbAspectRatioFree);
-
-	QButtonGroup *bg2 = new QButtonGroup;
-	bg2->addButton(rbPixelSizeMode);
-	bg2->addButton(rbPaperSizeMode);
-
-	cbPageSizeTemplate = new QComboBox;
-	cbPageSizeTemplate->addItem("Original");
-	cbPageSizeTemplate->addItem("Custom");
-	cbPageSizeTemplate->addItem("Letter");
-	cbPageSizeTemplate->addItem("Legal");
-	cbPageSizeTemplate->addItem("A4");
-	cbPageSizeTemplate->setCurrentIndex(2);
-
-	leDpi = new QLineEdit;
-	leDpi->setValidator(new QIntValidator(72,600));
-	leDpi->setText("150");
-	leDpi->setMaximumWidth(50);
-
-	lePixelWidth = new QLineEdit;
-	lePixelWidth->setValidator(new QIntValidator(100,10000));
-	lePixelHeight = new QLineEdit;
-	lePixelHeight->setValidator(new QIntValidator(100,10000));
-
-	lePaperWidth = new QLineEdit;
-	lePaperHeight = new QLineEdit;
-
-	cbPaperUnits = new QComboBox;
-	cbPaperUnits->addItem("mm");
-	cbPaperUnits->addItem("cm");
-	cbPaperUnits->addItem("in");
-	cbPaperUnits->setCurrentIndex(2);
+    pageSizeControl = new ImageSizeControl();
 
 	// ------------------------------------------------------------------------
 	// Page color adjustment
@@ -217,43 +122,18 @@ void MainWindow::createObjects() {
 	// ---------------------------------------------
 	// Button used to save the processed image
 	pbSave = new QPushButton("Save");
+
+    // ---------------------------------------------
+    // OpenCV backend
+    imgproc = new ImageProcessor;
 }
 
 void MainWindow::createLayout() {
 	// ------------------------------------------------------------------------
 	// Page size group box
-	QGridLayout *gridlayout1 = new QGridLayout;
-	gridlayout1->addWidget(new QLabel("Input size:"), 0, 0);
-	gridlayout1->addWidget(lbInputImageSize, 0, 1, 1, 2);
-	gridlayout1->addWidget(new QLabel("Aspect Ratio:"), 1, 0);
-	gridlayout1->addWidget(rbAspectRatioLock, 1, 1);
-	gridlayout1->addWidget(rbAspectRatioFree, 1, 2);
-	gridlayout1->addWidget(new QLabel("Size source:"), 2, 0);
-	gridlayout1->addWidget(rbPixelSizeMode, 2, 1);
-	gridlayout1->addWidget(rbPaperSizeMode, 2, 2);
-
-	QLabel *label1;
-	QSizePolicy policy(QSizePolicy::Maximum, QSizePolicy::Maximum);
-	label1 = new QLabel("Page size:");
-	label1->setSizePolicy(policy);
-	gridlayout1->addWidget(label1, 3, 0);
-	QHBoxLayout *hboxLayout1 = new QHBoxLayout;
-	hboxLayout1->addWidget(cbPageSizeTemplate);
-	label1 = new QLabel("dpi:");
-	label1->setSizePolicy(policy);
-	hboxLayout1->addWidget(label1);
-	hboxLayout1->addWidget(leDpi);
-	gridlayout1->addLayout(hboxLayout1, 3, 1, 1, 3);
-
-	gridlayout1->addWidget(new QLabel("Pixel size:"), 4, 0);
-	gridlayout1->addWidget(lePixelWidth, 4, 1);
-	gridlayout1->addWidget(lePixelHeight, 4, 2);
-	gridlayout1->addWidget(new QLabel("Paper size:"), 5, 0);
-	gridlayout1->addWidget(lePaperWidth, 5, 1);
-	gridlayout1->addWidget(lePaperHeight, 5, 2);
-	gridlayout1->addWidget(cbPaperUnits, 5, 3);
-
-	gbSize->setLayout(gridlayout1);
+    QVBoxLayout *vboxlayout1 = new QVBoxLayout;
+    vboxlayout1->addWidget(pageSizeControl);
+    gbSize->setLayout(vboxlayout1);
 	gbSize->setEnabled(false);
 
 	// ------------------------------------------------------------------------
@@ -265,8 +145,8 @@ void MainWindow::createLayout() {
 	gridlayout3->addWidget(new QLabel("Black"),1,0);
 	gridlayout3->addWidget(slBlack,1,1);
 	gridlayout3->addWidget(sbBlack,1,2);
-
 	gbAdjust->setLayout(gridlayout3);
+    gbAdjust->setEnabled(false);
 
 	// ------------------------------------------------------------------------
 	// Left panel widget
@@ -310,264 +190,84 @@ QString MainWindow::readRootFolder() {
 }
 
 void MainWindow::save() {
-	if (imgPageProcessed.isNull() || fileName.isEmpty()) {
-		return;
-	}
 
-	QFileInfo fileInfo(fileName);
-	QString outputFile = QString("%1/%2_scanned.jpg").arg(fileInfo.path()).arg(fileInfo.baseName());
-	QImageWriter writer(outputFile);
-	writer.setQuality(90);
-	writer.write(imgPageProcessed);
 }
 
-void MainWindow::scale() {
-	qDebug() << "MainWindow::scale()";
-
-	if (imgPageOriginal.isNull() || fileName.isEmpty()) {
-		return;
-	}
-
-	int w = lePixelWidth->text().toInt();
-	int h = lePixelHeight->text().toInt();
-
-	if (w == 0 || h == 0) {
-		return;
-	}
-
-	// Process the image with openCV
-	cv::Mat inMat = QImageToCvMat(imgPageOriginal);
-	// Intermediate working copies
-	cv::Mat imgA = cv::Mat(h,w,CV_8UC4);
-
-	cv::resize(inMat, imgA, imgA.size(), 0, 0, cv::INTER_CUBIC );
-	imgPageScaled = cvMatToQImage(imgA);
-}
-
-void MainWindow::findPage() {
-	qDebug() << "MainWindow::findPage()";
-
-	// Process the image with openCV
-	cv::Mat inMat = QImageToCvMat(imgOriginal);
-	// Intermediate working copies
-	cv::Mat imgA;
-	cv::Mat imgB;
-
-	//cv::imshow("original", inMat);
-
-	// Re-scale to process it faster
-	int height = 800;
-	int width = 800;
-	double ratio = 1;
-
-	if (inMat.cols > inMat.rows) {
-	    ratio = (double) width / (double) inMat.cols;
-	    height = inMat.rows * ratio;
-	} else {
-	    ratio = (double) height / (double) inMat.rows;
-	    width = inMat.cols * ratio;
-	}
-
-	cv::resize(inMat, imgA, cv::Size(width, height));
-
-	// Border detection
-	cv::cvtColor(imgA, imgB, cv::COLOR_BGRA2GRAY);
-
-	// Create a border with the average color of top line
-	int border = 10;
-	int avg = 0;
-	for(int x = 0; x < imgB.cols; x++) {
-		avg += imgB.data[x];
-	}
-	avg /= imgB.cols;
-
-	cv::copyMakeBorder(imgB, imgA, 0,0,border,border, cv::BORDER_CONSTANT, cv::Scalar(avg));
-	//cv::bilateralFilter(imgA, imgB, 5, 35, 95);
-	cv::GaussianBlur(imgA, imgB, cv::Size(7,7), 0);
-	//cv::adaptiveThreshold(imgB, imgA, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, 91, 5);
-	cv::threshold(imgB, imgA, 0, 255, cv::THRESH_BINARY+cv::THRESH_OTSU);
-
-	//cv::imshow("threshold", imgA);
-
-	//cv::GaussianBlur(imgA, imgB, cv::Size(5,5), 0);
-	cv::Canny(imgA, imgB, 200, 250);
-
-	//cv::imshow("Canny", imgB);
-
-	// Find contour
-	std::vector<std::vector<cv::Point>> contours;
-	std::vector<cv::Vec4i> hierarchy;
-	cv::findContours(imgB, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
-
-	// Filter the contour to that that is the biggest closed and convex
-	double MAX_CONTOUR_AREA = (width - border) * (height - border);
-	double maxAreaFound = MAX_CONTOUR_AREA * 0.25;
-
-	std::vector<cv::Point> page = {{border,border}, {border, height-2*border}, {width-2*border, height-2*border}, {width-2*border, border}};
-
-	//int c = 0;
-	for(int i = 0; i < (int)contours.size(); i++) {
-		std::vector<cv::Point> cnt = contours.at(i);
-		std::vector<cv::Point> approx_cnt;
-
-		double perimeter = cv::arcLength(cnt, true);
-		cv::approxPolyDP(cnt, approx_cnt, 0.03 * perimeter, true);
-		double area = cv::contourArea(approx_cnt);
-
-		bool rule = approx_cnt.size() == 4;
-		rule = rule && cv::isContourConvex(approx_cnt);
-		rule = rule && maxAreaFound < area;
-		rule = rule && area < MAX_CONTOUR_AREA;
-
-		if (rule) {
-			maxAreaFound = area;
-			page = approx_cnt;
-			//qDebug() << "found" << i;
-			//c = i;
-		}
-	}
-
-	//cv::drawContours(imgB, contours, c, cv::Scalar(255,255,255), 3);
-	//cv::imshow("findContours", imgB);
-
-	// Sort contour corners
-	int topLeft = 0;
-	int bottomLeft = 0;
-	int bottomRight = 0;
-	int topRight = 0;
-
-	double minDiff = 1e9, maxDiff = -1e9;
-	double minSum = 1e9, maxSum = -1e9;
-	for(int i=0; i < (int)page.size(); i++) {
-		double diff = page.at(i).x - page.at(i).y;
-		double sum = page.at(i).x + page.at(i).y;
-		if(diff > maxDiff) { maxDiff = diff; topRight = i; }
-		if(diff < minDiff) { minDiff = diff; bottomLeft = i; }
-		if(sum > maxSum) { maxSum = sum; bottomRight = i; }
-		if(sum < minSum) { minSum = sum; topLeft = i; }
-	}
-
-	// Map point back to the original image size
-	std::vector<cv::Point> aux;
-	aux.push_back((page.at(topLeft) + cv::Point(2-border,2)) / ratio);
-	aux.push_back((page.at(bottomLeft) + cv::Point(2-border,-2)) / ratio);
-	aux.push_back((page.at(bottomRight) + cv::Point(-2-border,-2)) / ratio);
-	aux.push_back((page.at(topRight) + cv::Point(-2-border,2)) / ratio);
-	page = aux;
-
-	disconnect(roiEditorLayerOriginal, &RoiEditorLayer::changed, this, &MainWindow::updateScanPage);
-	for (int i = 0; i < 4; i++) {
-		QPoint pos = QPoint(page.at(i).x, page.at(i).y);
-		roiEditorLayerOriginal->setCornerPosition(i,pos);
-	}
-	connect(roiEditorLayerOriginal, &RoiEditorLayer::changed, this, &MainWindow::updateScanPage);
-
-	viewerOriginal->update();
-}
-
-void MainWindow::scanPage() {
-	qDebug() << "MainWindow::scanPage()";
-
-	// Process the image with openCV
-	cv::Mat inMat = QImageToCvMat(imgOriginal);
-	// Intermediate working copies
-	cv::Mat imgA;
-
-	QPoint p0 = roiEditorLayerOriginal->getCornerPosition(0);
-	QPoint p1 = roiEditorLayerOriginal->getCornerPosition(1);
-	QPoint p2 = roiEditorLayerOriginal->getCornerPosition(2);
-	QPoint p3 = roiEditorLayerOriginal->getCornerPosition(3);
-
-	// Mean page size
-	double h1 = fabs(p0.y() - p1.y());
-	double h2 = fabs(p2.y() - p3.y());
-	double w1 = fabs(p1.x() - p2.x());
-	double w2 = fabs(p0.x() - p3.x());
-	int pageHeight = (h1 + h2)/2;
-	int pageWidth = (w1 + w2)/2;
-
-	// Source and target page points
-	std::vector<cv::Point2f> sPoints;
-	sPoints.push_back(cv::Point2f(p0.x(), p0.y()));
-	sPoints.push_back(cv::Point2f(p1.x(), p1.y()));
-	sPoints.push_back(cv::Point2f(p2.x(), p2.y()));
-	sPoints.push_back(cv::Point2f(p3.x(), p3.y()));
-
-	std::vector<cv::Point2f> tPoints;
-	tPoints.push_back(cv::Point2f(0,0));
-	tPoints.push_back(cv::Point2f(0,pageHeight));
-	tPoints.push_back(cv::Point2f(pageWidth,pageHeight));
-	tPoints.push_back(cv::Point2f(pageWidth,0));
-
-	// Get perspective matrix
-	cv::Mat M = cv::getPerspectiveTransform(sPoints, tPoints);
-	// And apply it
-	cv::warpPerspective(inMat, imgA, M, cv::Size(pageWidth, pageHeight));
-
-	imgPageOriginal = cvMatToQImage(imgA);
-}
+#include <exiv2/exiv2.hpp>
 
 void MainWindow::selectFile(const QModelIndex &index) {
 	qDebug() << "MainWindow::selectFile()";
 
+    bool isValid = false;
+
 	fileName = fileModel->filePath(index);
-	bool fromScanned = fileName.contains("_scanned");
 
-	if (fromScanned || fileModel->isDir(index)) {
+    int imgWidth = 0;
+    int imgHeight = 0;
+    int dpi = 0;
 
-	    pbSave->setEnabled(false);
+    if (!fileModel->isDir(index))
+    {
+        Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(fileName.toStdString());
 
-	    imageLayerOriginal->clear();
-	    imageLayerPage->clear();
-	    roiEditorLayerOriginal->setVisible(false);
+        image->readMetadata();
+        Exiv2::ExifData &exifData = image->exifData();
 
-	    viewerOriginal->resizeCanvasToLayer(0);
-	    viewerOriginal->update();
-	    viewerOriginal->setVisible(false);
+        if (exifData.count() > 0)
+        {
+            Exiv2::ExifData::const_iterator end = exifData.end();
+            for (Exiv2::ExifData::const_iterator i = exifData.begin(); i != end; ++i) {
+                QString key = QString::fromStdString(i->key());
 
-	    QImageReader reader(fileName);
-        reader.setAutoTransform(true);
-        QImage temp = reader.read();
+                if(key == "Exif.Image.XResolution") {
+                    dpi = i->value().toLong();
+                } else if(key == "Exif.Photo.PixelXDimension") {
+                    imgWidth = i->value().toLong();
+                } else if(key == "Exif.Photo.PixelYDimension") {
+                    imgHeight = i->value().toLong();
+                }
+            }
+        }
+        else {
+            QImageReader imageReader(fileName);
+            imageReader.setAutoTransform(true);
+            QSize imageSize = imageReader.size();
+            imgWidth = imageSize.width();
+            imgHeight = imageSize.height();
+            dpi = 72;
+        }
 
-        imageLayerPage->setImage(temp);
-	    viewerPage->resizeCanvasToLayer(0);
-	    viewerPage->update();
+        pageSizeControl->setSourceSize(imgWidth, imgHeight, dpi);
 
-		imgPageOriginal = QImage();
-		fileName = QString();
+        if (!fileName.contains("_scanned")) {
+            isValid = true;
+        }
+    }
 
-		gbSize->setEnabled(false);
-		gbAdjust->setEnabled(false);
+    if (isValid){
+        imgproc->setSourceImage(fileName);
 
-	} else {
+        imageLayerOriginal->setImage(imgproc->getSourceImage());
+        imageLayerOriginal->setVisible(true);
 
-	    pbSave->setEnabled(true);
+        roiEditorLayerOriginal->setRoi(imgproc->findPage());
+        roiEditorLayerOriginal->setVisible(true);
 
-		QImageReader reader(fileName);
-		reader.setAutoTransform(true);
-		reader.setAllocationLimit(512);
-		imgOriginal = reader.read();
+        viewerOriginal->resizeCanvasToLayer(0);
+        viewerOriginal->update();
 
-		// Update image viewer
-		imageLayerOriginal->setImage(imgOriginal);
-		roiEditorLayerOriginal->setVisible(true);
-		viewerOriginal->setVisible(true);
-		viewerOriginal->resizeCanvasToLayer(0);
-		viewerOriginal->update();
+        pbSave->setEnabled(true);
+        gbSize->setEnabled(true);
+        gbAdjust->setEnabled(true);
+    }
+    else {
+        imageLayerOriginal->setVisible(false);
+        roiEditorLayerOriginal->setVisible(false);
 
-		// Image size information
-		lbInputImageSize->setText(QString("%1 x %2 px").arg(imgOriginal.width()).arg(imgOriginal.height()));
-
-		// Scan it
-		findPage();
-		scanPage();
-
-		// Update page size dimensions
-		updatePageSizeTemplate();
-
-		gbSize->setEnabled(true);
-		gbAdjust->setEnabled(true);
-	}
+        pbSave->setEnabled(false);
+        gbSize->setEnabled(false);
+        gbAdjust->setEnabled(false);
+    }
 }
 
 void MainWindow::setRootFolder() {
@@ -576,172 +276,12 @@ void MainWindow::setRootFolder() {
 		fileModel->setRootPath(rootFolder);
 		fileBrowser->setRootIndex(fileModel->index(rootFolder));
 		writeRootFolder(rootFolder);
-	}
+    }
 }
 
-void MainWindow::updateDpi() {
-	qDebug() << "MainWindow::updateDpi()";
+void MainWindow::imageSizeChanged(int width, int height)
+{
 
-	if (cbPageSizeTemplate->currentIndex() == 0) {
-		updatePixelSize();
-	} else if (cbPageSizeTemplate->currentIndex() == 1) {
-		if (rbPixelSizeMode->isChecked()) {
-			updatePixelSize();
-		} else {
-			updatePaperSize();
-		}
-	} else if (cbPageSizeTemplate->currentIndex() > 1) {
-		updatePaperSize();
-	}
-}
-
-void MainWindow::updatePageSizeTemplate() {
-	qDebug() << "MainWindow::updatePageSizeTemplate()";
-
-	updatePixelPaperMode();
-
-	if (cbPageSizeTemplate->currentIndex() == 1) {
-		rbAspectRatioLock->setEnabled(true);
-		rbAspectRatioFree->setEnabled(true);
-		rbPixelSizeMode->setEnabled(true);
-		rbPaperSizeMode->setEnabled(true);
-		cbPaperUnits->setEnabled(true);
-	} else {
-		rbAspectRatioLock->setEnabled(false);
-		rbAspectRatioFree->setEnabled(false);
-		rbPixelSizeMode->setEnabled(false);
-		rbPaperSizeMode->setEnabled(false);
-		cbPaperUnits->setEnabled(false);
-	}
-
-	switch (cbPageSizeTemplate->currentIndex()) {
-		case 0:
-			lePixelWidth->setText(QString::number(imgPageOriginal.width()));
-			lePixelHeight->setText(QString::number(imgPageOriginal.height()));
-			updatePixelSize();
-			break;
-
-		case 1:
-			QMetaObject::invokeMethod(lePixelWidth,"textEdited", Qt::DirectConnection, Q_ARG(QString, ""));
-			break;
-
-		case 2:
-			lePaperWidth->setText("8.5");
-			lePaperHeight->setText("11.0");
-			cbPaperUnits->setCurrentIndex(2);
-			updatePaperSize();
-			break;
-
-		case 3:
-			lePaperWidth->setText("8.5");
-			lePaperHeight->setText("14.0");
-			cbPaperUnits->setCurrentIndex(2);
-			updatePaperSize();
-			break;
-
-		case 4:
-			lePaperWidth->setText("210");
-			lePaperHeight->setText("297");
-			cbPaperUnits->setCurrentIndex(0);
-			updatePaperSize();
-			break;
-	}
-}
-
-void MainWindow::updatePaperSize() {
-	qDebug() << "MainWindow::updatePaperSize()";
-
-	double dpi = leDpi->text().toDouble();
-	double pw = lePaperWidth->text().toDouble();
-	double ph = lePaperHeight->text().toDouble();
-	double units = 1;
-
-	if(cbPaperUnits->currentIndex() == 0) {
-		units = 25.4;
-	} else if(cbPaperUnits->currentIndex() == 1) {
-		units = 2.5;
-	}
-
-	if(rbAspectRatioLock->isChecked()) {
-		double ar = (double) imgPageOriginal.width() / (double) imgPageOriginal.height();
-		QLineEdit *obj = qobject_cast<QLineEdit*>(sender());
-		if (obj == lePaperWidth) {
-			ph = pw / ar;
-			lePaperHeight->setText(QString::number(ph, 'f', 1));
-		} else if(obj == lePaperHeight) {
-			pw = ph * ar;
-			lePaperWidth->setText(QString::number(pw, 'f', 1));
-		}
-	}
-
-	int w = pw * dpi / units;
-	int h = ph * dpi / units;
-
-	lePixelWidth->setText(QString::number(w));
-	lePixelHeight->setText(QString::number(h));
-
-	scale();
-	adjust();
-}
-
-void MainWindow::updatePixelPaperMode() {
-	qDebug() << "MainWindow::updatePixelPaperMode()";
-
-	if (cbPageSizeTemplate->currentIndex() == 1) {
-		if (rbPixelSizeMode->isChecked()) {
-			lePixelWidth->setEnabled(true);
-			lePixelHeight->setEnabled(true);
-			lePaperWidth->setEnabled(false);
-			lePaperHeight->setEnabled(false);
-		} else {
-			lePixelWidth->setEnabled(false);
-			lePixelHeight->setEnabled(false);
-			lePaperWidth->setEnabled(true);
-			lePaperHeight->setEnabled(true);
-		}
-	} else {
-		lePixelWidth->setEnabled(false);
-		lePixelHeight->setEnabled(false);
-		lePaperWidth->setEnabled(false);
-		lePaperHeight->setEnabled(false);
-	}
-}
-
-void MainWindow::updatePixelSize() {
-	qDebug() << "MainWindow::updatePixelSize()";
-
-	double dpi = leDpi->text().toDouble();
-	int pw = lePixelWidth->text().toInt();
-	int ph = lePixelHeight->text().toInt();
-
-	if(rbAspectRatioLock->isChecked()) {
-		double ar = (double) imgPageOriginal.width() / (double) imgPageOriginal.height();
-		QLineEdit *obj = qobject_cast<QLineEdit*>(sender());
-		if (obj == lePixelWidth) {
-			ph = (double) pw / ar;
-			lePixelHeight->setText(QString::number(ph));
-		} else if(obj == lePixelHeight) {
-			pw = (double) ph * ar;
-			lePixelWidth->setText(QString::number(pw));
-		}
-	}
-
-	double w = (double) pw / dpi;
-	double h = (double) ph / dpi;
-
-	lePaperWidth->setText(QString::number(w, 'f', 1));
-	lePaperHeight->setText(QString::number(h, 'f', 1));
-
-	scale();
-	adjust();
-}
-
-void MainWindow::updateScanPage() {
-	qDebug() << "MainWindow::updateScanPage()";
-
-	scanPage();
-	scale();
-	adjust();
 }
 
 void MainWindow::writeRootFolder(QString rootFolder) {

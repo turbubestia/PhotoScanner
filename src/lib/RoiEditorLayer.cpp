@@ -36,6 +36,14 @@ void RoiEditorLayer::setCornerPosition(int index, QPoint pos) {
     emit changed();
 }
 
+void RoiEditorLayer::setRoi(QRect roi)
+{
+    setCornerPosition(0,roi.topLeft());
+    setCornerPosition(1,roi.bottomLeft());
+    setCornerPosition(2,roi.bottomRight());
+    setCornerPosition(3,roi.topRight());
+}
+
 bool RoiEditorLayer::mousePressEvent(QMouseEvent *event) {
 	lastDragPoint = parent()->mapWidgetToCanvas(event->pos());
 

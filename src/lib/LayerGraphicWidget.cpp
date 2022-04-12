@@ -32,6 +32,7 @@ LayerGraphicWidget::LayerGraphicWidget(QWidget *parent)
     updateRoi();
 
     setFocusPolicy(Qt::ClickFocus);
+    setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 }
 
 LayerGraphicWidget::~LayerGraphicWidget() {
@@ -169,7 +170,8 @@ void LayerGraphicWidget::paintEvent(QPaintEvent *event) {
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::SmoothPixmapTransform);
 
-    if (!_widgetBackground.isNull()) {
+    if (!_widgetBackground.isNull())
+    {
         painter.drawImage(QPoint(0,0), _widgetBackground);
     }
 
@@ -181,8 +183,12 @@ void LayerGraphicWidget::paintEvent(QPaintEvent *event) {
     painter.setTransform(view);
 
     // Render each layer in order
-    for (int i = 0; i < layers.count(); i++) {
-        layers.at(i)->render(&painter);
+    for (int i = 0; i < layers.count(); i++)
+    {
+        if (layers.at(i)->isVisible())
+        {
+            layers.at(i)->render(&painter);
+        }
     }
 
     event->accept();

@@ -21,6 +21,7 @@ class RoiEditorLayer : public AbstractLayer {
 
 		int indexOf(QPoint pos, double ratio);
         void setCornerPosition(int index, QPoint pos);
+        void setRoi(QRect roi);
         QPoint getCornerPosition(int index);
 
 		bool mousePressEvent(QMouseEvent *event) override;

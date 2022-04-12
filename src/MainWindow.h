@@ -14,6 +14,8 @@
 #include "LayerGraphicWidget.h"
 #include "PixelLayer.h"
 #include "RoiEditorLayer.h"
+#include "ImageSizeControl.h"
+#include "ImageProcessor.h"
 
 class MainWindow : public QMainWindow
 {
@@ -24,15 +26,9 @@ class MainWindow : public QMainWindow
 
 	private slots:
 		void about();
-		void adjustImage();
 		void selectFile(const QModelIndex &index);
 		void setRootFolder();
-		void updateDpi();
-		void updatePageSizeTemplate();
-		void updatePaperSize();
-		void updatePixelPaperMode();
-		void updatePixelSize();
-		void updateScanPage();
+        void imageSizeChanged(int width, int height);
 
 	private:
 		// GUI
@@ -46,11 +42,7 @@ class MainWindow : public QMainWindow
 		void writeRootFolder(QString rootFolder);
 
 		// Logic
-		void adjust();
 		void save();
-		void scale();
-		void findPage();
-		void scanPage();
 
 	private:
 		// File browser
@@ -59,19 +51,8 @@ class MainWindow : public QMainWindow
 		QTreeView *fileBrowser;
 
 		// Image size settings
-		QGroupBox *gbSize;
-		QLabel *lbInputImageSize;
-		QRadioButton *rbAspectRatioLock;
-		QRadioButton *rbAspectRatioFree;
-		QRadioButton *rbPixelSizeMode;
-		QRadioButton *rbPaperSizeMode;
-		QComboBox *cbPageSizeTemplate;
-		QLineEdit *leDpi;
-		QLineEdit *lePixelWidth;
-		QLineEdit *lePixelHeight;
-		QLineEdit *lePaperWidth;
-		QLineEdit *lePaperHeight;
-		QComboBox *cbPaperUnits;
+        QGroupBox *gbSize;
+        ImageSizeControl *pageSizeControl;
 
 		// Image color adjustment settings
 		QGroupBox *gbAdjust;
@@ -81,12 +62,6 @@ class MainWindow : public QMainWindow
 		QSpinBox *sbBlack;
 		QPushButton *pbSave;
 
-		// Page viewers
-		QImage imgOriginal;
-		QImage imgPageOriginal;
-		QImage imgPageScaled;
-		QImage imgPageProcessed;
-
 		// Image viewer
         LayerGraphicWidget *viewerOriginal;
         PixelLayer *imageLayerOriginal;
@@ -94,6 +69,9 @@ class MainWindow : public QMainWindow
 
         LayerGraphicWidget *viewerPage;
         PixelLayer *imageLayerPage;
+
+        // opencv backend
+        ImageProcessor *imgproc;
 };
 
 
